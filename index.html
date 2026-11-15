@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mayday Operator access</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#0b0d12;color:#eef1f7}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}
+main{width:min(100%,520px);background:#151923;border:1px solid #303747;border-radius:18px;padding:28px;box-shadow:0 18px 60px #0006}
+h1{font-size:24px;margin:0 0 8px}p{color:#aeb8ca;line-height:1.55}
+.card{background:#0f131c;border:1px solid #303747;border-radius:12px;padding:14px;margin:18px 0}
+label{display:block;font-size:13px;color:#b8c2d4;margin:12px 0 6px}
+input{width:100%;padding:12px;border-radius:9px;border:1px solid #46516a;background:#0b0d12;color:#fff;font-size:16px}
+button{padding:12px 16px;border:0;border-radius:9px;background:#e7edf8;color:#111827;font-weight:700;font-size:15px;cursor:pointer;margin:8px 8px 0 0}
+button.secondary{background:#30394b;color:#eef1f7}button:disabled{opacity:.5;cursor:wait}
+.small{font-size:13px;color:#8995aa}.error{color:#ff9b9b}.hidden{display:none}
+</style></head><body><main>
+<h1>Mayday Operator access</h1>
+<p>Sign in to review the access requested by ChatGPT. You control whether access is granted.</p>
+<section id="signin" class="hidden"><div class="card"><strong>Sign in with an email link</strong>
+<p class="small">We'll send a one-time sign-in link. No password is needed here.</p>
+<label for="email">Email address</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+<button id="send">Send sign-in link</button><p id="signin-msg" class="small"></p></div></section>
+<section id="consent" class="hidden"><div class="card"><strong id="client-name">Connected application</strong>
+<p id="client-uri" class="small"></p><p id="scope"></p><p id="redirect" class="small"></p></div>
+<p>Granting access allows this application to submit tasks to the isolated Mayday V7 Dev queue and read progress and results for tasks you submitted. Mayday V6 production is not connected.</p>
+<button id="approve">Approve access</button><button id="deny" class="secondary">Deny</button></section>
+<p id="status" class="small">Loading…</p>
+<p class="small">Approval here only authorizes the connector. Mayday's own approval screen remains required for protected local actions.</p>
+</main>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const supabase = createClient("https://rqdslfqsdcwvnrfmxsux.supabase.co", "sb_publishable_wgq3fbQmQ76jBQxGivCWgQ_zKRTM0rX");
+const params = new URLSearchParams(location.search);
+const authorizationId = params.get("authorization_id");
+const signin = document.getElementById("signin");
+const consent = document.getElementById("consent");
+const status = document.getElementById("status");
+const say = (message, error=false) => { status.textContent=message; status.className=error?"small error":"small"; };
+if (!authorizationId) say("Missing authorization request. Return to ChatGPT and reconnect.", true);
+else {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) { signin.classList.remove("hidden"); say("Sign in to continue."); }
+  else await loadConsent();
+}
+document.getElementById("send").addEventListener("click", async () => {
+  const email = document.getElementById("email").value.trim();
+  if (!email) return say("Enter your email address.", true);
+  const button=document.getElementById("send");button.disabled=true;
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href } });
+  button.disabled=false;
+  document.getElementById("signin-msg").textContent = error ? error.message : "Check your email and open the sign-in link on this device.";
+});
+async function loadConsent() {
+  signin.classList.add("hidden");say("Loading access request…");
+  const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
+  if (error || !data) return say(error?.message || "Could not load access request.", true);
+  if (!("authorization_id" in data)) { location.replace(data.redirect_url); return; }
+  document.getElementById("client-name").textContent=data.client?.name || "ChatGPT connector";
+  document.getElementById("client-uri").textContent=data.client?.uri || "";
+  document.getElementById("scope").textContent="Requested permissions: "+(data.scope || "basic access");
+  document.getElementById("redirect").textContent="Redirect URI: "+(data.redirect_uri || "not provided");
+  consent.classList.remove("hidden");say("Review the request, then approve or deny.");
+}
+document.getElementById("approve").addEventListener("click", async () => {
+  const button=document.getElementById("approve");button.disabled=true;
+  const { data,error }=await supabase.auth.oauth.approveAuthorization(authorizationId,{skipBrowserRedirect:true});
+  if(error||!data?.redirect_url){button.disabled=false;return say(error?.message||"Approval failed.",true);}
+  location.replace(data.redirect_url);
+});
+document.getElementById("deny").addEventListener("click", async () => {
+  const button=document.getElementById("deny");button.disabled=true;
+  const { data,error }=await supabase.auth.oauth.denyAuthorization(authorizationId,{skipBrowserRedirect:true});
+  if(error||!data?.redirect_url){button.disabled=false;return say(error?.message||"Could not deny request.",true);}
+  location.replace(data.redirect_url);
+});
+supabase.auth.onAuthStateChange(async event => { if(event==="SIGNED_IN") await loadConsent(); });
+</script></body></html>
