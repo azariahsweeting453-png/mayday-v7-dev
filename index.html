@@ -14,7 +14,7 @@ button.secondary{background:#30394b;color:#eef1f7}button:disabled{opacity:.5;cur
 .small{font-size:13px;color:#8995aa}.error{color:#ff9b9b}.hidden{display:none}
 </style></head><body><main>
 <h1>Mayday Operator access</h1>
-<p>Sign in to review the access requested by ChatGPT. You control whether access is granted.</p>
+<p>Sign in to review the access requested by Claude. You control whether access is granted.</p>
 <section id="signin" class="hidden"><div class="card"><strong>Sign in with an email link</strong>
 <p class="small">We'll send a one-time sign-in link. No password is needed here.</p>
 <label for="email">Email address</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com">
@@ -35,7 +35,7 @@ const signin = document.getElementById("signin");
 const consent = document.getElementById("consent");
 const status = document.getElementById("status");
 const say = (message, error=false) => { status.textContent=message; status.className=error?"small error":"small"; };
-if (!authorizationId) say("Missing authorization request. Return to ChatGPT and reconnect.", true);
+if (!authorizationId) say("Missing authorization request. Return to Claude and reconnect.", true);
 else {
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData.session) { signin.classList.remove("hidden"); say("Sign in to continue."); }
@@ -54,7 +54,7 @@ async function loadConsent() {
   const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
   if (error || !data) return say(error?.message || "Could not load access request.", true);
   if (!("authorization_id" in data)) { location.replace(data.redirect_url); return; }
-  document.getElementById("client-name").textContent=data.client?.name || "ChatGPT connector";
+  document.getElementById("client-name").textContent=data.client?.name || "Connected application";
   document.getElementById("client-uri").textContent=data.client?.uri || "";
   document.getElementById("scope").textContent="Requested permissions: "+(data.scope || "basic access");
   document.getElementById("redirect").textContent="Redirect URI: "+(data.redirect_uri || "not provided");
